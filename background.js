@@ -1,0 +1,3 @@
+// ...existing code...
+// Background script for Chrome extension
+console.log('Background script loaded');
