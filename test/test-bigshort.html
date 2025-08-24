@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BigShort Test Data Environment</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+        }
+        .data-container {
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 2px solid #444;
+        }
+        .controls {
+            background-color: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .update-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .update-button:hover {
+            background-color: #45a049;
+        }
+        .update-button.stop {
+            background-color: #f44336;
+        }
+        .update-button.stop:hover {
+            background-color: #da190b;
+        }
+        .status-panel {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .status-panel h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .highlight {
+            background-color: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .data-value {
+            transition: background-color 0.3s ease;
+        }
+        .data-value.changed {
+            background-color: #4CAF50;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 BigShort Chrome Extension Test Environment</h1>
+            <p>This page simulates the exact BigShort data structure for testing your Chrome extension.</p>
+            <p>The data below matches the <span class="highlight">div[style*="padding: 30px; font-size: 6cqmin"]</span> structure your extension is looking for.</p>
+        </div>
+        
+        <div class="controls">
+            <h3>🎮 Test Controls</h3>
+            <button class="update-button" onclick="updateData()">📊 Update Random Values</button>
+            <button class="update-button" onclick="updateSingle()">🔄 Update Single Value</button>
+            <button class="update-button" onclick="randomizeData()">🎲 Randomize All Data</button>
+            <button class="update-button" onclick="startAutoUpdate()">▶️ Start Auto Update (2s)</button>
+            <button class="update-button stop" onclick="stopAutoUpdate()">⏹️ Stop Auto Update</button>
+            <button class="update-button" onclick="resetToDefaults()">🔄 Reset to Defaults</button>
+        </div>
+
+        <!-- This is the EXACT structure your Chrome extension is looking for -->
+        <div class="data-container" style="padding: 30px; font-size: 6cqmin;">
+            <div><span style="color: grey;">SmartFlow: </span><span class="data-value" id="smartflow">11,707,981</span></div>
+            <div><span style="color: grey;">MomoFlow: </span><span class="data-value" id="momoflow">3,234,438</span></div>
+            <div><span style="color: rgb(0, 202, 12);">SmartTally: </span><span class="data-value" id="smarttally">631,143,710</span></div>
+            <div><span style="color: rgb(255, 0, 0);">MomoTally: </span><span class="data-value" id="momotally">-489,427,323</span></div>
+            <div><span style="color: rgb(95, 166, 237);">Net Call Flow: </span><span class="data-value" id="netcallflow">81,953</span></div>
+            <div><span style="color: rgb(207, 145, 207);">Net Put Flow: </span><span class="data-value" id="netputflow">-101,002</span></div>
+            <div><span style="color: rgb(84, 138, 192);">Net Call Prem: </span><span class="data-value" id="netcallprem">107,900</span></div>
+            <div><span style="color: rgb(151, 107, 151);">Net Put Prem: </span><span class="data-value" id="netputprem">-60,252</span></div>
+            <div><span style="color: rgb(0, 202, 12);">NOFA: </span><span class="data-value" id="nofa">-1,501,626</span></div>
+            <div><span style="color: rgb(128, 192, 128);">Call Wall All: </span><span class="data-value" id="callwall">645</span></div>
+            <div><span style="color: rgb(255, 153, 153);">Put Wall All: </span><span class="data-value" id="putwall">635</span></div>
+            <div><span style="color: rgb(173, 173, 214);">Zero Gamma Flip All: </span><span class="data-value" id="zerogamma">638</span></div>
+            <div><span style="color: rgb(186, 150, 84);">Gamma Gravity All: </span><span class="data-value" id="gammagravity">644</span></div>
+            <div><span style="color: rgb(76, 175, 80);">Call Wall 7: </span><span class="data-value" id="callwall7">645</span></div>
+            <div><span style="color: rgb(244, 67, 54);">Put Wall 7: </span><span class="data-value" id="putwall7">635</span></div>
+            <div><span style="color: rgb(163, 163, 235);">Zero Gamma Flip 7: </span><span class="data-value" id="zerogamma7">638</span></div>
+            <div><span style="color: rgb(220, 158, 42);">Gamma Gravity 7: </span><span class="data-value" id="gammagravity7">645</span></div>
+            <div><span style="color: rgb(0, 128, 0);">Call Wall 0: </span><span class="data-value" id="callwall0">645</span></div>
+            <div><span style="color: rgb(255, 0, 0);">Put Wall 0: </span><span class="data-value" id="putwall0">635</span></div>
+            <div><span style="color: rgb(153, 153, 255);">Zero Gamma Flip 0: </span><span class="data-value" id="zerogamma0">639</span></div>
+            <div><span style="color: rgb(255, 165, 0);">Gamma Gravity 0: </span><span class="data-value" id="gammagravity0">644</span></div>
+        </div>
+
+        <div class="status-panel">
+            <h3>📊 Test Status</h3>
+            <p><strong>Current Status:</strong> <span id="status">Ready for testing</span></p>
+            <p><strong>Last Update:</strong> <span id="lastupdate">Never</span></p>
+            <p><strong>Updates Count:</strong> <span id="updatecount">0</span></p>
+            <p><strong>Auto-Update:</strong> <span id="autostatus">Stopped</span></p>
+        </div>
+
+        <div class="status-panel">
+            <h3>🔧 Extension Testing Guide</h3>
+            <ol>
+                <li><strong>Load your Chrome extension</strong> in developer mode</li>
+                <li><strong>Open this page</strong> in Chrome</li>
+                <li><strong>Open the extension sidepanel</strong> on this page</li>
+                <li><strong>Use the test controls above</strong> to simulate data changes</li>
+                <li><strong>Verify</strong> that your extension detects and stores the changes</li>
+                <li><strong>Check the console</strong> for extraction logs from your extension</li>
+            </ol>
+            
+            <h4>🎯 What to Test:</h4>
+            <ul>
+                <li>✅ <strong>Data Extraction:</strong> Extension should detect all 21 key-value pairs</li>
+                <li>✅ <strong>Change Detection:</strong> MutationObserver should trigger on updates</li>
+                <li>✅ <strong>Real-time Updates:</strong> Sidepanel should show changing values</li>
+                <li>✅ <strong>Database Storage:</strong> All changes should be stored in IndexedDB</li>
+                <li>✅ <strong>UI Display:</strong> Sidepanel should properly display metrics</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let autoUpdateInterval = null;
+        let updateCount = 0;
+        
+        // Default values for reset functionality
+        const defaultValues = {
+            'smartflow': '11,707,981',
+            'momoflow': '3,234,438',
+            'smarttally': '631,143,710',
+            'momotally': '-489,427,323',
+            'netcallflow': '81,953',
+            'netputflow': '-101,002',
+            'netcallprem': '107,900',
+            'netputprem': '-60,252',
+            'nofa': '-1,501,626',
+            'callwall': '645',
+            'putwall': '635',
+            'zerogamma': '638',
+            'gammagravity': '644',
+            'callwall7': '645',
+            'putwall7': '635',
+            'zerogamma7': '638',
+            'gammagravity7': '645',
+            'callwall0': '645',
+            'putwall0': '635',
+            'zerogamma0': '639',
+            'gammagravity0': '644'
+        };
+        
+        const dataElements = Object.keys(defaultValues);
+
+        function highlightChange(elementId) {
+            const element = document.getElementById(elementId);
+            element.classList.add('changed');
+            setTimeout(() => {
+                element.classList.remove('changed');
+            }, 1000);
+        }
+
+        function updateStatus(message) {
+            updateCount++;
+            document.getElementById('status').textContent = message;
+            document.getElementById('lastupdate').textContent = new Date().toLocaleTimeString();
+            document.getElementById('updatecount').textContent = updateCount;
+        }
+
+        function updateData() {
+            // Simulate small changes to 2-5 random values
+            const elementsToUpdate = Math.floor(Math.random() * 4) + 2; // 2-5 elements
+            const updatedElements = [];
+            
+            for (let i = 0; i < elementsToUpdate; i++) {
+                const randomElement = dataElements[Math.floor(Math.random() * dataElements.length)];
+                if (updatedElements.includes(randomElement)) continue; // Avoid duplicates
+                
+                const element = document.getElementById(randomElement);
+                const currentValue = parseInt(element.textContent.replace(/,/g, ''));
+                
+                // Small random change (+/- 1-10%)
+                const changePercent = (Math.random() - 0.5) * 0.2; // -10% to +10%
+                const newValue = Math.floor(currentValue * (1 + changePercent));
+                
+                element.textContent = newValue.toLocaleString();
+                highlightChange(randomElement);
+                updatedElements.push(randomElement);
+            }
+            
+            updateStatus(`Updated ${elementsToUpdate} values: ${updatedElements.join(', ')}`);
+        }
+
+        function updateSingle() {
+            const randomElement = dataElements[Math.floor(Math.random() * dataElements.length)];
+            const element = document.getElementById(randomElement);
+            const currentValue = parseInt(element.textContent.replace(/,/g, ''));
+            
+            // Larger change for single updates (+/- 5-25%)
+            const changePercent = (Math.random() - 0.5) * 0.5; // -25% to +25%
+            const newValue = Math.floor(currentValue * (1 + changePercent));
+            
+            element.textContent = newValue.toLocaleString();
+            highlightChange(randomElement);
+            
+            updateStatus(`Updated single value: ${randomElement} = ${newValue.toLocaleString()}`);
+        }
+
+        function randomizeData() {
+            dataElements.forEach(elementId => {
+                const element = document.getElementById(elementId);
+                const isNegative = Math.random() > 0.7; // 30% chance of negative
+                const magnitude = Math.floor(Math.random() * 1000000000); // Up to 1 billion
+                const value = isNegative ? -magnitude : magnitude;
+                element.textContent = value.toLocaleString();
+                highlightChange(elementId);
+            });
+            
+            updateStatus('All values randomized');
+        }
+
+        function resetToDefaults() {
+            dataElements.forEach(elementId => {
+                const element = document.getElementById(elementId);
+                element.textContent = defaultValues[elementId];
+                highlightChange(elementId);
+            });
+            
+            updateStatus('Reset to default values');
+        }
+
+        function startAutoUpdate() {
+            if (autoUpdateInterval) return;
+            
+            autoUpdateInterval = setInterval(() => {
+                if (Math.random() > 0.5) {
+                    updateData();
+                } else {
+                    updateSingle();
+                }
+            }, 2000); // Update every 2 seconds
+            
+            document.getElementById('autostatus').textContent = 'Running (2s intervals)';
+            updateStatus('Auto-update started (every 2 seconds)');
+        }
+
+        function stopAutoUpdate() {
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+                document.getElementById('autostatus').textContent = 'Stopped';
+                updateStatus('Auto-update stopped');
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('BigShort Test Environment loaded');
+            console.log('Extension should detect div[style*="padding: 30px"] container');
+            console.log('Data elements available:', dataElements.length);
+            updateStatus('Test environment ready');
+        });
+    </script>
+</body>
+</html>

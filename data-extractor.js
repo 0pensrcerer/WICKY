@@ -20,9 +20,77 @@ function extractAllDataFromDiv(parentDiv) {
     return data;
 }
 
-// Select the parentDiv element (replace '#yourDivId' with the actual ID or selector)
-const parentDiv = document.querySelector('div[style*="padding: 30px"]');
+// Select the parentDiv element with more specific selector
+const parentDiv = document.querySelector('div[style*="padding: 30px; font-size: 6cqmin"]');
 
-// Call the function and log the result
-const result = extractAllDataFromDiv(parentDiv);
-console.log(result);
+// Store previous values to detect changes
+let previousValues = {};
+
+// Initial extraction
+if (parentDiv) {
+    const result = extractAllDataFromDiv(parentDiv);
+    previousValues = result;
+    console.log('Initial data extraction:', result);
+} else {
+    console.error('Target div not found. Please check if the selector is correct.');
+}
+
+// Set up MutationObserver to watch for changes
+function setupMutationObserver() {
+    if (!parentDiv) return;
+    
+    const observer = new MutationObserver((mutations) => {
+        // Extract data after mutation
+        const newData = extractAllDataFromDiv(parentDiv);
+        
+        // Check if any values have changed
+        const changedValues = {};
+        let hasChanges = false;
+        
+        Object.keys(newData).forEach(key => {
+            if (newData[key] !== previousValues[key]) {
+                changedValues[key] = {
+                    from: previousValues[key],
+                    to: newData[key]
+                };
+                hasChanges = true;
+            }
+        });
+        
+        if (hasChanges) {
+            console.log('Values changed:', changedValues);
+            console.log('Current data:', newData);
+            
+            // Update previous values
+            previousValues = {...newData};
+            
+            // You could store this data for charting later
+            if (window.chrome && chrome.storage) {
+                chrome.storage.local.set({
+                    extractedData: newData,
+                    timestamp: new Date().toISOString(),
+                    changes: changedValues
+                });
+            }
+        }
+    });
+    
+    // Start observing with configuration
+    observer.observe(parentDiv, {
+        childList: true,      // Watch for changes to child elements
+        subtree: true,       // Watch the entire subtree
+        characterData: true, // Watch for changes to text content
+        attributes: true     // Watch for changes to attributes
+    });
+    
+    console.log('MutationObserver set up to monitor data changes');
+    return observer;
+}
+
+// Initialize the observer
+const observer = setupMutationObserver();
+
+// Make functions available to the window object
+window.extractAllDataFromDiv = extractAllDataFromDiv;
+window.setupMutationObserver = setupMutationObserver;
+window.observer = observer;
