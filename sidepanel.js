@@ -1,4 +1,19 @@
 document.addEventListener('DOMContentLoaded', function() {
+  // Chart data structure
+  window.chartData = {
+    selectedMetric: null,
+    chartStartTime: null,
+    currentMinuteData: {
+      timestamp: null,
+      value: 0
+    },
+    minuteData: [],
+    chart: null
+  };
+  
+  // Initialize UI
+  initializeUI();
+  
   // Set up storage listener to handle data updates from MutationObserver
   chrome.storage.onChanged.addListener(function(changes, namespace) {
     if (namespace === 'local' && changes.extractedData) {
@@ -9,10 +24,237 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log(`Data updated at ${timestamp}:`, newData);
       console.log('Changed values:', changedValues);
       
-      // Here you would update your charts when implemented
-      // For now, just log the changes
+      // Process data for the chart
+      if (window.chartData.selectedMetric && Object.keys(changedValues).length > 0) {
+        processDataChange(changedValues, newData);
+      }
     }
   });
+
+// Function to initialize UI
+function initializeUI() {
+  const metricSelector = document.getElementById('metric-selector');
+  const metrics = [
+    'SmartFlow', 'MomoFlow', 'SmartTally', 'MomoTally', 'Net Call Flow', 'Net Put Flow',
+    'Net Call Prem', 'Net Put Prem', 'NOFA', 'Call Wall All', 'Put Wall All', 'Zero Gamma Flip All',
+    'Gamma Gravity All', 'Call Wall 7', 'Put Wall 7', 'Zero Gamma Flip 7', 'Gamma Gravity 7',
+    'Call Wall 0', 'Put Wall 0', 'Zero Gamma Flip 0', 'Gamma Gravity 0'
+  ];
+  
+  // Clear existing options
+  metricSelector.innerHTML = '<option value="" disabled selected>Select a metric</option>';
+  
+  // Add options for each metric
+  metrics.forEach(metric => {
+    const option = document.createElement('option');
+    option.value = metric;
+    option.textContent = metric;
+    metricSelector.appendChild(option);
+  });
+  
+  // Add event listener for metric selection
+  metricSelector.addEventListener('change', function() {
+    const selectedMetric = this.value;
+    if (selectedMetric) {
+      initializeChart(selectedMetric);
+    }
+  });
+}
+
+// Function to initialize the chart
+function initializeChart(metricName) {
+  // Reset chart data
+  window.chartData.selectedMetric = metricName;
+  window.chartData.chartStartTime = new Date();
+  window.chartData.minuteData = [];
+  window.chartData.currentMinuteData = {
+    timestamp: new Date(),
+    value: 0
+  };
+  
+  // Initialize the 5-minute window with empty data points
+  const now = new Date();
+  for (let i = 0; i < 5; i++) {
+    const minuteTime = new Date(now);
+    minuteTime.setMinutes(now.getMinutes() + i);
+    minuteTime.setSeconds(0);
+    minuteTime.setMilliseconds(0);
+    
+    window.chartData.minuteData.push({
+      x: minuteTime,
+      y: 0
+    });
+  }
+  
+  // Create or update the chart
+  const ctx = document.getElementById('metric-chart').getContext('2d');
+  
+  if (window.chartData.chart) {
+    window.chartData.chart.destroy();
+  }
+  
+  const chartConfig = {
+    type: 'bar',
+    data: {
+      datasets: [{
+        label: `${metricName} Changes`,
+        data: window.chartData.minuteData,
+        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            unit: 'minute',
+            displayFormats: {
+              minute: 'HH:mm'
+            }
+          },
+          title: {
+            display: true,
+            text: 'Time'
+          }
+        },
+        y: {
+          beginAtZero: true,
+          min: -20000000,
+          max: 20000000,
+          title: {
+            display: true,
+            text: 'Change Sum'
+          }
+        }
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: `${metricName} Changes Over Time`
+        }
+      }
+    }
+  };
+  
+  window.chartData.chart = new Chart(ctx, chartConfig);
+  
+  // Update UI
+  document.getElementById('current-metric').textContent = `Current metric: ${metricName}`;
+  updateTimeWindowDisplay();
+}
+
+// Function to process data changes
+function processDataChange(changes, newData) {
+  if (!window.chartData.selectedMetric || !changes[window.chartData.selectedMetric]) {
+    return; // No changes for the selected metric
+  }
+  
+  const change = changes[window.chartData.selectedMetric];
+  const fromValue = parseFloat(change.from.replace(/,/g, '')) || 0;
+  const toValue = parseFloat(change.to.replace(/,/g, '')) || 0;
+  const changeValue = toValue - fromValue;
+  
+  const now = new Date();
+  const currentMinute = now.getMinutes();
+  
+  // Check if we're in a new minute - if so, reset the current minute data
+  if (!window.chartData.currentMinuteData.timestamp || 
+      window.chartData.currentMinuteData.timestamp.getMinutes() !== currentMinute) {
+    window.chartData.currentMinuteData = {
+      timestamp: now,
+      value: changeValue // Start fresh for this minute
+    };
+  } else {
+    // Same minute, add to the change sum
+    window.chartData.currentMinuteData.value += changeValue;
+  }
+  
+  // Update the chart
+  updateChart(changeValue);
+}
+
+// Function to update the chart
+function updateChart(changeValue) {
+  if (!window.chartData.chart) return;
+  
+  const now = new Date();
+  const currentMinute = now.getMinutes();
+  const chartStartMinute = window.chartData.chartStartTime.getMinutes();
+  
+  // Check if we need to start a new 5-minute window
+  if (currentMinute >= chartStartMinute + 5) {
+    // Reset the chart for a new 5-minute window
+    window.chartData.chartStartTime = new Date();
+    window.chartData.chartStartTime.setSeconds(0);
+    window.chartData.chartStartTime.setMilliseconds(0);
+    window.chartData.minuteData = [];
+    
+    // Initialize new window with current minute as the first bar
+    for (let i = 0; i < 5; i++) {
+      const minuteTime = new Date(window.chartData.chartStartTime);
+      minuteTime.setMinutes(window.chartData.chartStartTime.getMinutes() + i);
+      
+      window.chartData.minuteData.push({
+        x: minuteTime,
+        y: 0
+      });
+    }
+    
+    window.chartData.chart.data.datasets[0].data = window.chartData.minuteData;
+  }
+  
+  // Update the current minute's data point
+  const minuteIndex = currentMinute - chartStartMinute;
+  if (minuteIndex >= 0 && minuteIndex < 5) {
+    window.chartData.minuteData[minuteIndex].y = window.chartData.currentMinuteData.value;
+  }
+  
+  // Check if we need to update the y-axis scale
+  updateYAxisScale(window.chartData.chart, window.chartData.currentMinuteData.value);
+  
+  // Update the chart
+  window.chartData.chart.update();
+  
+  // Update the time window display
+  updateTimeWindowDisplay();
+}
+
+// Function to update the y-axis scale
+function updateYAxisScale(chart, newValue) {
+  const currentMax = chart.options.scales.y.max || 20000000;
+  const currentMin = chart.options.scales.y.min || -20000000;
+  
+  if (newValue > currentMax) {
+    // Increase max in 20M increments
+    chart.options.scales.y.max = Math.ceil(newValue / 20000000) * 20000000;
+  } else if (newValue < currentMin) {
+    // Decrease min in 20M increments
+    chart.options.scales.y.min = Math.floor(newValue / 20000000) * 20000000;
+  }
+  
+  chart.update('none'); // Update without animation for better performance
+}
+
+// Function to update the time window display
+function updateTimeWindowDisplay() {
+  if (!window.chartData.chartStartTime) return;
+  
+  const startTime = window.chartData.chartStartTime;
+  const endTime = new Date(startTime);
+  endTime.setMinutes(startTime.getMinutes() + 4);
+  endTime.setSeconds(59);
+  
+  const formatTime = (time) => {
+    return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  
+  document.getElementById('time-window').textContent = 
+    `Time window: ${formatTime(startTime)} - ${formatTime(endTime)}`;
+}
   
   document.getElementById('actionBtn').addEventListener('click', function() {
     console.log('Extract Data button clicked');
@@ -47,21 +289,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Function that will be injected into the current page
 function extractDataFromCurrentPage() {
-  // Check if data-extractor.js is already injected
+  // Define the data extraction function inline
+  function extractAllDataFromDiv(parentDiv) {
+    const labels = [
+      'SmartFlow:', 'MomoFlow:', 'SmartTally:', 'MomoTally:', 'Net Call Flow:', 'Net Put Flow:',
+      'Net Call Prem:', 'Net Put Prem:', 'NOFA:', 'Call Wall All:', 'Put Wall All:', 'Zero Gamma Flip All:',
+      'Gamma Gravity All:', 'Call Wall 7:', 'Put Wall 7:', 'Zero Gamma Flip 7:', 'Gamma Gravity 7:',
+      'Call Wall 0:', 'Put Wall 0:', 'Zero Gamma Flip 0:', 'Gamma Gravity 0:'
+    ];
+    const data = {};
+    Array.from(parentDiv.children).forEach(div => {
+      const spans = div.querySelectorAll('span');
+      if (spans.length > 0) {
+        const label = spans[0].textContent.trim();
+        const value = div.textContent.replace(label, '').trim();
+        if (labels.includes(label)) {
+          data[label.replace(':', '')] = value;
+        }
+      }
+    });
+    return data;
+  }
+  
+  // Make the function available globally if not already defined
   if (!window.extractAllDataFromDiv) {
-    console.log('Injecting data-extractor.js script');
-    
-    // First, inject the data-extractor.js script
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('data-extractor.js');
-    script.onload = function() {
-      console.log('data-extractor.js loaded successfully');
-      // The MutationObserver will be set up automatically by data-extractor.js
-    };
-    document.head.appendChild(script);
-    
-    // Return a message that the script is being injected
-    return { status: 'injecting_script', message: 'Setting up data extraction and MutationObserver' };
+    window.extractAllDataFromDiv = extractAllDataFromDiv;
   }
   
   // Look for the specific div that contains our data
@@ -81,16 +333,61 @@ function extractDataFromCurrentPage() {
     // If the script is already injected, we can use the global function
     const extractedData = window.extractAllDataFromDiv(targetDiv);
     
-    // Check if MutationObserver is already set up
+    // Set up MutationObserver if not already done
     if (!window.observer) {
       console.log('Setting up MutationObserver');
-      // The setupMutationObserver function should be defined in data-extractor.js
-      // and made available on the window object
-      if (typeof window.setupMutationObserver === 'function') {
-        window.observer = window.setupMutationObserver();
-      } else {
-        console.warn('setupMutationObserver function not found, using data-extractor.js default observer');
+      
+      // Store previous values to detect changes
+      if (!window.previousValues) {
+        window.previousValues = extractedData;
       }
+      
+      const observer = new MutationObserver((mutations) => {
+        // Extract data after mutation
+        const newData = window.extractAllDataFromDiv(targetDiv);
+        
+        // Check if any values have changed
+        const changedValues = {};
+        let hasChanges = false;
+        
+        Object.keys(newData).forEach(key => {
+          if (newData[key] !== window.previousValues[key]) {
+            changedValues[key] = {
+              from: window.previousValues[key],
+              to: newData[key]
+            };
+            hasChanges = true;
+          }
+        });
+        
+        if (hasChanges) {
+          console.log('Values changed:', changedValues);
+          console.log('Current data:', newData);
+          
+          // Update previous values
+          window.previousValues = {...newData};
+          
+          // Store data for charting
+          if (window.chrome && chrome.storage) {
+            chrome.storage.local.set({
+              extractedData: newData,
+              timestamp: new Date().toISOString(),
+              changes: changedValues
+            });
+          }
+        }
+      });
+      
+      // Start observing with configuration
+      observer.observe(targetDiv, {
+        childList: true,      // Watch for changes to child elements
+        subtree: true,       // Watch the entire subtree
+        characterData: true, // Watch for changes to text content
+        attributes: true     // Watch for changes to attributes
+      });
+      
+      window.observer = observer;
+      console.log('MutationObserver set up to monitor data changes');
     } else {
       console.log('MutationObserver already set up');
     }

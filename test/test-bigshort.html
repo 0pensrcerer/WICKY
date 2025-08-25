@@ -203,15 +203,11 @@
         }
 
         function updateData() {
-            // Simulate small changes to 2-5 random values
-            const elementsToUpdate = Math.floor(Math.random() * 4) + 2; // 2-5 elements
+            // Update ALL values simultaneously with small changes
             const updatedElements = [];
             
-            for (let i = 0; i < elementsToUpdate; i++) {
-                const randomElement = dataElements[Math.floor(Math.random() * dataElements.length)];
-                if (updatedElements.includes(randomElement)) continue; // Avoid duplicates
-                
-                const element = document.getElementById(randomElement);
+            dataElements.forEach(elementId => {
+                const element = document.getElementById(elementId);
                 const currentValue = parseInt(element.textContent.replace(/,/g, ''));
                 
                 // Small random change (+/- 1-10%)
@@ -219,11 +215,11 @@
                 const newValue = Math.floor(currentValue * (1 + changePercent));
                 
                 element.textContent = newValue.toLocaleString();
-                highlightChange(randomElement);
-                updatedElements.push(randomElement);
-            }
+                highlightChange(elementId);
+                updatedElements.push(elementId);
+            });
             
-            updateStatus(`Updated ${elementsToUpdate} values: ${updatedElements.join(', ')}`);
+            updateStatus(`Updated ALL ${updatedElements.length} values simultaneously`);
         }
 
         function updateSingle() {
