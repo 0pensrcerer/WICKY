@@ -61,24 +61,39 @@ function initializeUI() {
   });
 }
 
+// Function to get the most recent 5-minute boundary
+function getMostRecent5MinuteBoundary(currentTime) {
+  const boundary = new Date(currentTime);
+  const minutes = boundary.getMinutes();
+  
+  // Round down to the nearest 5-minute boundary (0, 5, 10, 15, etc.)
+  const roundedMinutes = Math.floor(minutes / 5) * 5;
+  
+  boundary.setMinutes(roundedMinutes);
+  boundary.setSeconds(0);
+  boundary.setMilliseconds(0);
+  
+  return boundary;
+}
+
 // Function to initialize the chart
 function initializeChart(metricName) {
   // Reset chart data
   window.chartData.selectedMetric = metricName;
-  window.chartData.chartStartTime = new Date();
+  
+  // Set chart start time to the most recent 5-minute boundary
+  const now = new Date();
+  window.chartData.chartStartTime = getMostRecent5MinuteBoundary(now);
   window.chartData.minuteData = [];
   window.chartData.currentMinuteData = {
     timestamp: new Date(),
     value: 0
   };
   
-  // Initialize the 5-minute window with empty data points
-  const now = new Date();
+  // Initialize the 5-minute window with proper boundary times
   for (let i = 0; i < 5; i++) {
-    const minuteTime = new Date(now);
-    minuteTime.setMinutes(now.getMinutes() + i);
-    minuteTime.setSeconds(0);
-    minuteTime.setMilliseconds(0);
+    const minuteTime = new Date(window.chartData.chartStartTime);
+    minuteTime.setMinutes(window.chartData.chartStartTime.getMinutes() + i);
     
     window.chartData.minuteData.push({
       x: minuteTime,
@@ -186,14 +201,18 @@ function updateChart(changeValue) {
   const chartStartMinute = window.chartData.chartStartTime.getMinutes();
   
   // Check if we need to start a new 5-minute window
-  if (currentMinute >= chartStartMinute + 5) {
+  // Handle minute rollover (e.g., from 59 to 0)
+  let minuteDiff = currentMinute - chartStartMinute;
+  if (minuteDiff < 0) {
+    minuteDiff += 60; // Handle hour rollover
+  }
+  
+  if (minuteDiff >= 5) {
     // Reset the chart for a new 5-minute window
-    window.chartData.chartStartTime = new Date();
-    window.chartData.chartStartTime.setSeconds(0);
-    window.chartData.chartStartTime.setMilliseconds(0);
+    window.chartData.chartStartTime = getMostRecent5MinuteBoundary(now);
     window.chartData.minuteData = [];
     
-    // Initialize new window with current minute as the first bar
+    // Initialize new window with proper 5-minute boundaries
     for (let i = 0; i < 5; i++) {
       const minuteTime = new Date(window.chartData.chartStartTime);
       minuteTime.setMinutes(window.chartData.chartStartTime.getMinutes() + i);
@@ -207,8 +226,14 @@ function updateChart(changeValue) {
     window.chartData.chart.data.datasets[0].data = window.chartData.minuteData;
   }
   
+  // Calculate the correct minute index based on the current time and chart start
+  const updatedChartStartMinute = window.chartData.chartStartTime.getMinutes();
+  let minuteIndex = currentMinute - updatedChartStartMinute;
+  if (minuteIndex < 0) {
+    minuteIndex += 60; // Handle hour rollover
+  }
+  
   // Update the current minute's data point
-  const minuteIndex = currentMinute - chartStartMinute;
   if (minuteIndex >= 0 && minuteIndex < 5) {
     window.chartData.minuteData[minuteIndex].y = window.chartData.currentMinuteData.value;
   }
