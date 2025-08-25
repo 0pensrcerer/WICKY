@@ -224,6 +224,10 @@ function updateChart(changeValue) {
     }
     
     window.chartData.chart.data.datasets[0].data = window.chartData.minuteData;
+    
+    // Reset y-axis to default range when starting new 5-minute window
+    window.chartData.chart.options.scales.y.min = -20000000;
+    window.chartData.chart.options.scales.y.max = 20000000;
   }
   
   // Calculate the correct minute index based on the current time and chart start
