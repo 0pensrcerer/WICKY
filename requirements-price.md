@@ -1,0 +1,2 @@
+we wamt to use the value found in price-data-extractor.js to chart the change in percentage to the price in one minute intervals. this chart should always be above the other charts. and should always be present. apart from having the chart y axis be a percentage of the change in price we want the same rolling 5 minute window we have with other financial metrics
+The purpose is to show the user how another financial metric, such as momotally, has affected the price.

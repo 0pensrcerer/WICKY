@@ -11,25 +11,61 @@ document.addEventListener('DOMContentLoaded', function() {
     chart: null
   };
   
+  // Price chart data structure
+  window.priceChartData = {
+    chart: null,
+    chartStartTime: null,
+    minuteData: [],
+    currentMinuteData: {
+      timestamp: null,
+      price: 0,
+      percentageChange: 0
+    },
+    basePrice: null, // First price in current window
+    previousPrice: null
+  };
+  
   // Initialize UI
   initializeUI();
   
-  // Set up storage listener to handle data updates from MutationObserver
-  chrome.storage.onChanged.addListener(function(changes, namespace) {
-    if (namespace === 'local' && changes.extractedData) {
-      const newData = changes.extractedData.newValue;
-      const timestamp = changes.timestamp ? changes.timestamp.newValue : new Date().toISOString();
-      const changedValues = changes.changes ? changes.changes.newValue : {};
-      
-      console.log(`Data updated at ${timestamp}:`, newData);
-      console.log('Changed values:', changedValues);
-      
-      // Process data for the chart
-      if (window.chartData.selectedMetric && Object.keys(changedValues).length > 0) {
-        processDataChange(changedValues, newData);
+  // Initialize price chart
+  initializePriceChart();
+  
+  // Simulate price data for testing (only when not in extension environment)
+  if (typeof chrome === 'undefined' || !chrome.storage) {
+    simulatePriceData();
+  }
+  
+  // Set up storage listener to handle data updates from MutationObserver (only in extension environment)
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.onChanged.addListener(function(changes, namespace) {
+    if (namespace === 'local') {
+      // Handle regular metric data updates
+      if (changes.extractedData) {
+        const newData = changes.extractedData.newValue;
+        const timestamp = changes.timestamp ? changes.timestamp.newValue : new Date().toISOString();
+        const changedValues = changes.changes ? changes.changes.newValue : {};
+        
+        console.log(`Data updated at ${timestamp}:`, newData);
+        console.log('Changed values:', changedValues);
+        
+        // Process data for the chart
+        if (window.chartData.selectedMetric && Object.keys(changedValues).length > 0) {
+          processDataChange(changedValues, newData);
+        }
       }
-    }
-  });
+      
+      // Handle price data updates
+      if (changes.priceData) {
+        const priceData = changes.priceData.newValue;
+        if (priceData && priceData.value) {
+          console.log('Price data updated:', priceData.value, 'at', priceData.timestamp);
+          processPriceData(priceData.value);
+        }
+      }
+     }
+    });
+  }
 
 // Function to initialize UI
 function initializeUI() {
@@ -61,6 +97,193 @@ function initializeUI() {
   });
 }
 
+// Function to initialize the price chart
+function initializePriceChart(startTime = null) {
+  const now = new Date();
+  // Use provided start time or calculate new boundary
+  window.priceChartData.chartStartTime = startTime || getMostRecent5MinuteBoundary(now);
+  window.priceChartData.minuteData = [];
+  window.priceChartData.basePrice = null;
+  window.priceChartData.previousPrice = null;
+  
+  // Initialize 5-minute window with zero percentage changes
+  for (let i = 0; i < 5; i++) {
+    const minuteTime = new Date(window.priceChartData.chartStartTime);
+    minuteTime.setMinutes(window.priceChartData.chartStartTime.getMinutes() + i);
+    
+    window.priceChartData.minuteData.push({
+      x: minuteTime,
+      y: 0 // Percentage change
+    });
+  }
+  
+  createPriceChart();
+}
+
+// Function to create the price chart
+function createPriceChart() {
+  const ctx = document.getElementById('price-chart').getContext('2d');
+  
+  if (window.priceChartData.chart) {
+    window.priceChartData.chart.destroy();
+  }
+  
+  const chartConfig = {
+    type: 'bar',
+    data: {
+      datasets: [{
+        label: 'Price Change (%)',
+        data: window.priceChartData.minuteData,
+        backgroundColor: function(context) {
+          const value = context.parsed.y;
+          return value >= 0 ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)';
+        },
+        borderColor: function(context) {
+          const value = context.parsed.y;
+          return value >= 0 ? 'rgba(34, 197, 94, 1)' : 'rgba(239, 68, 68, 1)';
+        },
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            unit: 'minute',
+            displayFormats: {
+              minute: 'HH:mm'
+            }
+          },
+          title: {
+            display: true,
+            text: 'Time'
+          }
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Price Change (%)'
+          },
+          ticks: {
+            callback: function(value) {
+              return value.toFixed(3) + '%';
+            }
+          }
+        }
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: '5-Minute Price Change Percentage'
+        },
+        legend: {
+          display: false
+        }
+      }
+    }
+  };
+  
+  window.priceChartData.chart = new Chart(ctx, chartConfig);
+}
+
+// Function to process price data updates
+function processPriceData(newPrice) {
+  if (!newPrice || isNaN(newPrice)) {
+    return;
+  }
+  
+  const now = new Date();
+  const currentMinute = now.getMinutes();
+  const chartStartMinute = window.priceChartData.chartStartTime.getMinutes();
+  
+  // Check if we need to start a new 5-minute window
+  let minuteDiff = currentMinute - chartStartMinute;
+  if (minuteDiff < 0) {
+    minuteDiff += 60; // Handle hour rollover
+  }
+  
+  if (minuteDiff >= 5) {
+    // Reset the price chart for a new 5-minute window
+    window.priceChartData.chartStartTime = getMostRecent5MinuteBoundary(now);
+    window.priceChartData.minuteData = [];
+    window.priceChartData.basePrice = newPrice; // Reset base price for new window
+    
+    // Initialize new 5-minute window
+    for (let i = 0; i < 5; i++) {
+      const minuteTime = new Date(window.priceChartData.chartStartTime);
+      minuteTime.setMinutes(window.priceChartData.chartStartTime.getMinutes() + i);
+      
+      window.priceChartData.minuteData.push({
+        x: minuteTime,
+        y: 0
+      });
+    }
+    
+    window.priceChartData.chart.data.datasets[0].data = window.priceChartData.minuteData;
+  }
+  
+  // Set base price if this is the first price
+  if (window.priceChartData.basePrice === null) {
+    window.priceChartData.basePrice = newPrice;
+    window.priceChartData.previousPrice = newPrice;
+    return;
+  }
+  
+  // Calculate percentage change from base price
+  const percentageChange = ((newPrice - window.priceChartData.basePrice) / window.priceChartData.basePrice) * 100;
+  
+  // Calculate the correct minute index based on current time and chart start
+  const updatedChartStartMinute = window.priceChartData.chartStartTime.getMinutes();
+  let minuteIndex = currentMinute - updatedChartStartMinute;
+  if (minuteIndex < 0) {
+    minuteIndex += 60; // Handle hour rollover
+  }
+  
+  // Update the current minute's data point
+  if (minuteIndex >= 0 && minuteIndex < 5) {
+    window.priceChartData.minuteData[minuteIndex].y = percentageChange;
+  }
+  
+  // Update current minute data
+  window.priceChartData.currentMinuteData = {
+    timestamp: now,
+    price: newPrice,
+    percentageChange: percentageChange
+  };
+  
+  // Update chart
+  window.priceChartData.chart.update('none');
+  
+  window.priceChartData.previousPrice = newPrice;
+}
+
+
+
+// Function to simulate price data for testing
+function simulatePriceData() {
+  let basePrice = 100.0;
+  let currentPrice = basePrice;
+  
+  // Generate initial price
+  processPriceData(currentPrice);
+  
+  // Simulate price changes every 10 seconds
+  setInterval(() => {
+    // Random price change between -2% and +2%
+    const changePercent = (Math.random() - 0.5) * 4;
+    currentPrice = currentPrice * (1 + changePercent / 100);
+    
+    // Keep price within reasonable bounds
+    currentPrice = Math.max(50, Math.min(200, currentPrice));
+    
+    processPriceData(currentPrice);
+  }, 10000); // Update every 10 seconds for testing
+}
+
 // Function to get the most recent 5-minute boundary
 function getMostRecent5MinuteBoundary(currentTime) {
   const boundary = new Date(currentTime);
@@ -89,6 +312,9 @@ function initializeChart(metricName) {
     timestamp: new Date(),
     value: 0
   };
+  
+  // Synchronize price chart with the same start time
+  initializePriceChart(window.chartData.chartStartTime);
   
   // Initialize the 5-minute window with proper boundary times
   for (let i = 0; i < 5; i++) {
@@ -290,6 +516,7 @@ function updateTimeWindowDisplay() {
     
     // Try to get data from the current tab's content and set up the observer
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      // First inject the main data extraction script
       chrome.scripting.executeScript({
         target: {tabId: tabs[0].id},
         function: extractDataFromCurrentPage
@@ -310,6 +537,18 @@ function updateTimeWindowDisplay() {
           console.log('Initial data extraction:', data);
         } else {
           console.error('No data found or error occurred');
+        }
+      });
+      
+      // Also inject the price data extractor script
+      chrome.scripting.executeScript({
+        target: {tabId: tabs[0].id},
+        files: ['price-data-extractor.js']
+      }, function(results) {
+        if (chrome.runtime.lastError) {
+          console.error('Error injecting price-data-extractor.js:', chrome.runtime.lastError);
+        } else {
+          console.log('Price data extractor injected successfully');
         }
       });
     });
