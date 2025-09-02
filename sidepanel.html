@@ -89,6 +89,246 @@
     #popoutBtn:hover {
       background: #218838;
     }
+    
+    /* Alarm UI Styles */
+    #alarm-controls {
+      margin: 15px 0;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    #create-alarm-btn {
+      padding: 8px 16px;
+      background: #dc3545;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9em;
+      width: 100%;
+    }
+    
+    #create-alarm-btn:hover {
+      background: #c82333;
+    }
+    
+    #create-alarm-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+    
+    /* Alarm Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+    
+    .modal-content {
+      background-color: #fff;
+      margin: 15% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 400px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .modal-header h3 {
+      margin: 0;
+      color: #333;
+    }
+    
+    .close {
+      color: #aaa;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    .close:hover {
+      color: #000;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+    
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    
+    .btn-primary {
+      background: #0078d7;
+      color: #fff;
+    }
+    
+    .btn-primary:hover {
+      background: #005fa3;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: #fff;
+    }
+    
+    .btn-secondary:hover {
+      background: #545b62;
+    }
+    
+    /* Alarm Display Styles */
+    #alarm-display {
+      margin: 15px 0;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .alarm-info {
+      margin-bottom: 15px;
+    }
+    
+    .alarm-status {
+      font-weight: bold;
+      padding: 5px 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    
+    .alarm-status.active {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .alarm-status.triggered {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+      animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    
+    .alarm-details {
+      font-size: 0.9em;
+      color: #333;
+      margin-bottom: 10px;
+    }
+    
+    .acknowledge-btn {
+      background: #ffc107;
+      color: #212529;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8em;
+      margin-right: 8px;
+    }
+    
+    .acknowledge-btn:hover {
+      background: #e0a800;
+    }
+    
+    .delete-btn {
+      background: #dc3545;
+      color: #fff;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8em;
+    }
+    
+    .delete-btn:hover {
+      background: #c82333;
+    }
+    
+    .no-alarm {
+      color: #6c757d;
+      font-style: italic;
+      text-align: center;
+    }
+    
+    .trigger-history {
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+    
+    .trigger-history h4 {
+      margin: 0 0 8px 0;
+      font-size: 0.9em;
+      color: #333;
+    }
+    
+    .history-list {
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    
+    .history-item {
+      font-size: 0.8em;
+      color: #666;
+      padding: 2px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
   </style>
 </head>
 <body>
@@ -116,6 +356,11 @@
     </select>
   </div>
   
+  <!-- Alarm Controls -->
+  <div id="alarm-controls">
+    <button id="create-alarm-btn" disabled>Create Alarm</button>
+  </div>
+  
   <!-- Chart container -->
   <div id="chart-container">
     <canvas id="metric-chart"></canvas>
@@ -126,7 +371,43 @@
     <span id="current-metric">No metric selected</span>
     <span id="time-window">Time window: N/A</span>
   </div>
+  
+  <!-- Alarm Display -->
+  <div id="alarm-display">
+    <div class="no-alarm">No alarm set</div>
+  </div>
+  
+  <!-- Alarm Creation Modal -->
+  <div id="alarm-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Alarm</h3>
+        <span class="close">&times;</span>
+      </div>
+      <form id="alarm-form">
+        <div class="form-group">
+          <label for="threshold-input">Threshold:</label>
+          <input type="text" id="threshold-input" placeholder="e.g., 100m, -50k, 2b" required>
+          <small style="color: #666; font-size: 0.8em;">Supports: k (thousands), m (millions), b (billions)</small>
+        </div>
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="absolute-checkbox">
+            <label for="absolute-checkbox">Use absolute value</label>
+          </div>
+          <small style="color: #666; font-size: 0.8em;">Triggers when change magnitude exceeds threshold</small>
+        </div>
+        <div class="modal-buttons">
+          <button type="button" class="btn btn-secondary" id="cancel-alarm-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Alarm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
   <script src="data-extractor.js"></script>
+  <script src="single-alarm-manager.js"></script>
+  <script src="audio-alarm-notifier.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

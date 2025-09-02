@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize price chart
   initializePriceChart();
   
+  // Initialize alarm UI
+  initializeAlarmUI();
+  
   // Simulate price data for testing (only when not in extension environment)
   if (typeof chrome === 'undefined' || !chrome.storage) {
     simulatePriceData();
@@ -92,7 +95,17 @@ function initializeUI() {
   metricSelector.addEventListener('change', function() {
     const selectedMetric = this.value;
     if (selectedMetric) {
+      // Delete existing alarm when switching metrics
+      if (window.singleAlarmManager && window.singleAlarmManager.getCurrentAlarm()) {
+        window.singleAlarmManager.deleteAlarm();
+        window.singleAlarmManager.updateAlarmDisplay();
+        console.log('Alarm deleted due to metric switch');
+      }
+      
       initializeChart(selectedMetric);
+      
+      // Update alarm UI state
+      updateAlarmButtonState();
     }
   });
   
@@ -296,6 +309,11 @@ function processPriceData(newPrice) {
     percentageChange: percentageChange
   };
   
+  // Check price change alarm
+  if (window.singleAlarmManager) {
+    window.singleAlarmManager.checkAlarm(percentageChange, 'Price Change (%)');
+  }
+  
   // Update chart
   window.priceChartData.chart.update('none');
   
@@ -427,6 +445,82 @@ function initializeChart(metricName) {
   // Update UI
   document.getElementById('current-metric').textContent = `Current metric: ${metricName}`;
   updateTimeWindowDisplay();
+  
+  // Update alarm display
+  if (window.singleAlarmManager) {
+    window.singleAlarmManager.updateAlarmDisplay();
+  }
+}
+
+// Initialize alarm UI components
+function initializeAlarmUI() {
+  const createAlarmBtn = document.getElementById('create-alarm-btn');
+  const alarmModal = document.getElementById('alarm-modal');
+  const alarmForm = document.getElementById('alarm-form');
+  const cancelBtn = document.getElementById('cancel-alarm-btn');
+  const closeBtn = document.querySelector('.close');
+  
+  // Create alarm button click
+  createAlarmBtn.addEventListener('click', function() {
+    if (window.chartData.selectedMetric) {
+      alarmModal.style.display = 'block';
+      document.getElementById('threshold-input').focus();
+    }
+  });
+  
+  // Close modal events
+  const closeModal = () => {
+    alarmModal.style.display = 'none';
+    alarmForm.reset();
+  };
+  
+  cancelBtn.addEventListener('click', closeModal);
+  closeBtn.addEventListener('click', closeModal);
+  
+  // Close modal when clicking outside
+  window.addEventListener('click', function(event) {
+    if (event.target === alarmModal) {
+      closeModal();
+    }
+  });
+  
+  // Handle alarm form submission
+  alarmForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const threshold = document.getElementById('threshold-input').value.trim();
+    const isAbsolute = document.getElementById('absolute-checkbox').checked;
+    const selectedMetric = window.chartData.selectedMetric;
+    
+    if (threshold && selectedMetric && window.singleAlarmManager) {
+      try {
+        window.singleAlarmManager.createAlarm(threshold, isAbsolute, selectedMetric);
+        closeModal();
+        updateAlarmButtonState();
+        window.singleAlarmManager.updateAlarmDisplay();
+        console.log(`Alarm created for ${selectedMetric}: ${threshold}${isAbsolute ? ' (absolute)' : ''}`);
+      } catch (error) {
+        alert('Error creating alarm: ' + error.message);
+      }
+    }
+  });
+  
+  // Initialize button state
+  updateAlarmButtonState();
+}
+
+// Update alarm button state based on metric selection
+function updateAlarmButtonState() {
+  const createAlarmBtn = document.getElementById('create-alarm-btn');
+  const hasSelectedMetric = window.chartData && window.chartData.selectedMetric;
+  
+  if (hasSelectedMetric) {
+    createAlarmBtn.disabled = false;
+    createAlarmBtn.textContent = 'Create Alarm';
+  } else {
+    createAlarmBtn.disabled = true;
+    createAlarmBtn.textContent = 'Select a metric first';
+  }
 }
 
 // Function to process data changes
@@ -452,11 +546,16 @@ function processDataChange(changes, newData) {
     };
   } else {
     // Same minute, add to the change sum
-    window.chartData.currentMinuteData.value += changeValue;
-  }
-  
-  // Update the chart
-  updateChart(changeValue);
+  window.chartData.currentMinuteData.value += changeValue;
+}
+
+// Check alarm for this metric
+if (window.singleAlarmManager) {
+  window.singleAlarmManager.checkAlarm(window.chartData.currentMinuteData.value, window.chartData.selectedMetric);
+}
+
+// Update the chart
+updateChart(changeValue);
 }
 
 // Function to update the chart
