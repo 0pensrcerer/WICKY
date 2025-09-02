@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
       price: 0,
       percentageChange: 0
     },
-    basePrice: null, // First price in current window
+    minuteBasePrices: {}, // Base price for each minute index
     previousPrice: null
   };
   
@@ -95,6 +95,44 @@ function initializeUI() {
       initializeChart(selectedMetric);
     }
   });
+  
+  // Add event listener for popout button
+  const popoutBtn = document.getElementById('popoutBtn');
+  if (popoutBtn) {
+    popoutBtn.addEventListener('click', function() {
+      openPopoutWindow();
+    });
+  }
+}
+
+// Function to open popout window
+function openPopoutWindow() {
+  // Get the current window dimensions for sizing the popout
+  const width = 400;
+  const height = 600;
+  const left = (screen.width - width) / 2;
+  const top = (screen.height - height) / 2;
+  
+  // Create the popout window
+  const popoutWindow = window.open(
+    'sidepanel.html',
+    'WICKYPopout',
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+  );
+  
+  if (popoutWindow) {
+    // Focus the new window
+    popoutWindow.focus();
+    
+    // Optional: Close the current sidepanel if running in extension context
+    if (typeof chrome !== 'undefined' && chrome.sidePanel) {
+      // Note: This would close the sidepanel, but we'll leave it open for now
+      // chrome.sidePanel.close();
+    }
+  } else {
+    console.error('Failed to open popout window. Please check if popups are blocked.');
+    alert('Failed to open popout window. Please check if popups are blocked.');
+  }
 }
 
 // Function to initialize the price chart
@@ -210,7 +248,7 @@ function processPriceData(newPrice) {
     // Reset the price chart for a new 5-minute window
     window.priceChartData.chartStartTime = getMostRecent5MinuteBoundary(now);
     window.priceChartData.minuteData = [];
-    window.priceChartData.basePrice = newPrice; // Reset base price for new window
+    window.priceChartData.minuteBasePrices = {}; // Reset minute base prices
     
     // Initialize new 5-minute window
     for (let i = 0; i < 5; i++) {
@@ -226,22 +264,25 @@ function processPriceData(newPrice) {
     window.priceChartData.chart.data.datasets[0].data = window.priceChartData.minuteData;
   }
   
-  // Set base price if this is the first price
-  if (window.priceChartData.basePrice === null) {
-    window.priceChartData.basePrice = newPrice;
-    window.priceChartData.previousPrice = newPrice;
-    return;
-  }
-  
-  // Calculate percentage change from base price
-  const percentageChange = ((newPrice - window.priceChartData.basePrice) / window.priceChartData.basePrice) * 100;
-  
   // Calculate the correct minute index based on current time and chart start
   const updatedChartStartMinute = window.priceChartData.chartStartTime.getMinutes();
   let minuteIndex = currentMinute - updatedChartStartMinute;
   if (minuteIndex < 0) {
     minuteIndex += 60; // Handle hour rollover
   }
+  
+  // Set base price for this minute if it's the first price of the minute
+  if (!window.priceChartData.minuteBasePrices) {
+    window.priceChartData.minuteBasePrices = {};
+  }
+  
+  if (!window.priceChartData.minuteBasePrices[minuteIndex]) {
+    window.priceChartData.minuteBasePrices[minuteIndex] = newPrice;
+  }
+  
+  // Calculate percentage change from the base price of this specific minute
+  const minuteBasePrice = window.priceChartData.minuteBasePrices[minuteIndex];
+  const percentageChange = ((newPrice - minuteBasePrice) / minuteBasePrice) * 100;
   
   // Update the current minute's data point
   if (minuteIndex >= 0 && minuteIndex < 5) {
@@ -478,17 +519,17 @@ function updateChart(changeValue) {
   updateTimeWindowDisplay();
 }
 
-// Function to update the y-axis scale
+// Function to update the y-axis scale on metric chart not the price chart
 function updateYAxisScale(chart, newValue) {
-  const currentMax = chart.options.scales.y.max || 20000000;
-  const currentMin = chart.options.scales.y.min || -20000000;
+  const currentMax = chart.options.scales.y.max || 5000000;
+  const currentMin = chart.options.scales.y.min || -5000000;
   
   if (newValue > currentMax) {
     // Increase max in 20M increments
-    chart.options.scales.y.max = Math.ceil(newValue / 20000000) * 20000000;
+    chart.options.scales.y.max = Math.ceil(newValue / 5000000) * 5000000;
   } else if (newValue < currentMin) {
     // Decrease min in 20M increments
-    chart.options.scales.y.min = Math.floor(newValue / 20000000) * 20000000;
+    chart.options.scales.y.min = Math.floor(newValue / 5000000) * 5000000;
   }
   
   chart.update('none'); // Update without animation for better performance

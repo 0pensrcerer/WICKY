@@ -71,10 +71,31 @@
       font-size: 0.9em;
       color: #666;
     }
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    #popoutBtn {
+      padding: 8px 16px;
+      background: #28a745;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    #popoutBtn:hover {
+      background: #218838;
+    }
   </style>
 </head>
 <body>
-  <h1>WICKY</h1>
+  <div class="header-container">
+    <h1>WICKY</h1>
+    <button id="popoutBtn">Pop Out</button>
+  </div>
   <button id="actionBtn">Extract Data</button>
   <div id="result" style="display: none;">Result will appear here.</div>
   
