@@ -89,6 +89,13 @@
             <h1>🧪 BigShort Chrome Extension Test Environment</h1>
             <p>This page simulates the exact BigShort data structure for testing your Chrome extension.</p>
             <p>The data below matches the <span class="highlight">div[style*="padding: 30px; font-size: 6cqmin"]</span> structure your extension is looking for.</p>
+            
+            <!-- Price element for price-data-extractor.js testing -->
+            <div style="margin: 20px 0; padding: 15px; background-color: #333; border-radius: 8px;">
+                <h3 style="margin: 0 0 10px 0; color: #4CAF50;">💰 Live Price Data</h3>
+                <p>Current Price: $<span class="higlight-number shade1" id="live-price">100.00</span></p>
+                <p style="font-size: 12px; color: #888;">Updates every 2 seconds with ±1% random changes</p>
+            </div>
         </div>
         
         <div class="controls">
@@ -284,9 +291,61 @@
             }
         }
 
+        // Price update functionality
+        let currentPrice = 100.00;
+        let priceUpdateInterval;
+        
+        function updatePrice() {
+            // Random change between -1% and +1%
+            const changePercent = (Math.random() - 0.5) * 2; // -1 to +1
+            currentPrice = currentPrice * (1 + changePercent / 100);
+            
+            // Keep price within reasonable bounds (50-200)
+            currentPrice = Math.max(50, Math.min(200, currentPrice));
+            
+            // Update the price display
+            const priceElement = document.getElementById('live-price');
+            if (priceElement) {
+                priceElement.textContent = currentPrice.toFixed(2);
+                
+                // Add visual feedback
+                priceElement.style.backgroundColor = changePercent >= 0 ? '#4CAF50' : '#f44336';
+                priceElement.style.color = 'white';
+                priceElement.style.padding = '2px 4px';
+                priceElement.style.borderRadius = '3px';
+                priceElement.style.transition = 'background-color 0.3s ease';
+                
+                // Remove highlight after 500ms
+                setTimeout(() => {
+                    priceElement.style.backgroundColor = 'transparent';
+                    priceElement.style.color = 'inherit';
+                }, 500);
+                
+                console.log('Price updated to:', currentPrice.toFixed(2));
+            }
+        }
+        
+        function startPriceUpdates() {
+            if (priceUpdateInterval) return;
+            
+            priceUpdateInterval = setInterval(updatePrice, 2000); // Update every 2 seconds
+            console.log('Price updates started (every 2 seconds)');
+        }
+        
+        function stopPriceUpdates() {
+            if (priceUpdateInterval) {
+                clearInterval(priceUpdateInterval);
+                priceUpdateInterval = null;
+                console.log('Price updates stopped');
+            }
+        }
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             console.log('BigShort Test Environment loaded');
+            
+            // Start price updates automatically
+            startPriceUpdates();
             console.log('Extension should detect div[style*="padding: 30px"] container');
             console.log('Data elements available:', dataElements.length);
             updateStatus('Test environment ready');

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Alarm System Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+    }
+    .test-section {
+      background: #fff;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+    .test-button {
+      padding: 10px 20px;
+      margin: 5px;
+      background: #0078d7;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .test-button:hover {
+      background: #005fa3;
+    }
+    .test-result {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0078d7;
+      font-family: monospace;
+    }
+    .success {
+      border-left-color: #28a745;
+      background: #d4edda;
+    }
+    .error {
+      border-left-color: #dc3545;
+      background: #f8d7da;
+    }
+  </style>
+</head>
+<body>
+  <h1>Alarm System Test Suite</h1>
+  
+  <div class="test-section">
+    <h2>1. Threshold Parsing Tests</h2>
+    <button class="test-button" onclick="testThresholdParsing()">Test Threshold Parsing</button>
+    <div id="threshold-results"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>2. Alarm Creation Tests</h2>
+    <button class="test-button" onclick="testAlarmCreation()">Test Alarm Creation</button>
+    <div id="creation-results"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>3. Alarm Triggering Tests</h2>
+    <button class="test-button" onclick="testAlarmTriggering()">Test Alarm Triggering</button>
+    <div id="triggering-results"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>4. Audio System Tests</h2>
+    <button class="test-button" onclick="testAudioSystem()">Test Audio System</button>
+    <button class="test-button" onclick="stopAudio()">Stop Audio</button>
+    <div id="audio-results"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>5. Boundary Reset Tests</h2>
+    <button class="test-button" onclick="testBoundaryReset()">Test 5-Minute Boundary Reset</button>
+    <div id="boundary-results"></div>
+  </div>
+  
+  <script src="single-alarm-manager.js"></script>
+  <script src="audio-alarm-notifier.js"></script>
+  
+  <script>
+    function logResult(containerId, message, isSuccess = true) {
+      const container = document.getElementById(containerId);
+      const div = document.createElement('div');
+      div.className = `test-result ${isSuccess ? 'success' : 'error'}`;
+      div.textContent = message;
+      container.appendChild(div);
+    }
+    
+    function clearResults(containerId) {
+      document.getElementById(containerId).innerHTML = '';
+    }
+    
+    function testThresholdParsing() {
+      clearResults('threshold-results');
+      const manager = new SingleAlarmManager();
+      
+      const testCases = [
+        { input: '100', expected: 100 },
+        { input: '1k', expected: 1000 },
+        { input: '2.5m', expected: 2500000 },
+        { input: '1b', expected: 1000000000 },
+        { input: '-50k', expected: -50000 },
+        { input: '0.1m', expected: 100000 }
+      ];
+      
+      testCases.forEach(test => {
+        const result = manager.parseThreshold(test.input);
+        const success = result === test.expected;
+        logResult('threshold-results', 
+          `Input: '${test.input}' → Expected: ${test.expected}, Got: ${result}`, 
+          success
+        );
+      });
+    }
+    
+    function testAlarmCreation() {
+      clearResults('creation-results');
+      const manager = new SingleAlarmManager();
+      
+      try {
+        // Test creating alarm
+        const alarm = manager.createAlarm('100m', false, 'Test Metric');
+        logResult('creation-results', `Alarm created: ${JSON.stringify(alarm)}`);
+        
+        // Test getting current alarm
+        const currentAlarm = manager.getCurrentAlarm();
+        logResult('creation-results', `Current alarm retrieved: ${currentAlarm !== null}`);
+        
+        // Test deleting alarm
+        manager.deleteAlarm();
+        const deletedAlarm = manager.getCurrentAlarm();
+        logResult('creation-results', `Alarm deleted: ${deletedAlarm === null}`);
+        
+      } catch (error) {
+        logResult('creation-results', `Error: ${error.message}`, false);
+      }
+    }
+    
+    function testAlarmTriggering() {
+      clearResults('triggering-results');
+      const manager = new SingleAlarmManager();
+      
+      try {
+        // Test positive threshold
+        manager.createAlarm('100', false, 'Test Metric');
+        let triggered = manager.checkAlarm(150, 'Test Metric');
+        logResult('triggering-results', `Positive threshold (150 > 100): ${triggered}`);
+        
+        // Test same boundary (should not trigger again)
+        triggered = manager.checkAlarm(200, 'Test Metric');
+        logResult('triggering-results', `Same boundary (200 > 100): ${triggered}`, !triggered);
+        
+        // Test negative threshold
+        manager.createAlarm('-50', false, 'Test Metric');
+        triggered = manager.checkAlarm(-75, 'Test Metric');
+        logResult('triggering-results', `Negative threshold (-75 < -50): ${triggered}`);
+        
+        // Test absolute value
+        manager.createAlarm('100', true, 'Test Metric');
+        triggered = manager.checkAlarm(-150, 'Test Metric');
+        logResult('triggering-results', `Absolute value (|-150| > 100): ${triggered}`);
+        
+        // Test wrong metric
+        triggered = manager.checkAlarm(200, 'Wrong Metric');
+        logResult('triggering-results', `Wrong metric: ${triggered}`, !triggered);
+        
+      } catch (error) {
+        logResult('triggering-results', `Error: ${error.message}`, false);
+      }
+    }
+    
+    async function testAudioSystem() {
+      clearResults('audio-results');
+      
+      try {
+        // Initialize audio context
+        const audioReady = await window.audioAlarmNotifier.initAudioContext();
+        logResult('audio-results', `Audio context initialized: ${audioReady}`);
+        
+        if (audioReady) {
+          // Test playing alarm
+          logResult('audio-results', 'Playing test alarm for 3 seconds...');
+          await window.audioAlarmNotifier.playAlarm();
+          
+          setTimeout(() => {
+            const isPlaying = window.audioAlarmNotifier.isAlarmPlaying();
+            logResult('audio-results', `Audio playing status: ${isPlaying}`);
+          }, 1000);
+        }
+        
+      } catch (error) {
+        logResult('audio-results', `Error: ${error.message}`, false);
+      }
+    }
+    
+    function stopAudio() {
+      window.audioAlarmNotifier.stopAlarm();
+      logResult('audio-results', 'Audio stopped manually');
+    }
+    
+    function testBoundaryReset() {
+      clearResults('boundary-results');
+      const manager = new SingleAlarmManager();
+      
+      try {
+        // Test boundary calculation
+        const now = new Date();
+        const boundary = manager.getMostRecent5MinuteBoundary(now);
+        logResult('boundary-results', `Current time: ${now.toLocaleTimeString()}`);
+        logResult('boundary-results', `5-min boundary: ${boundary.toLocaleTimeString()}`);
+        
+        // Test boundary reset logic
+        manager.createAlarm('100', false, 'Test Metric');
+        manager.checkAlarm(150, 'Test Metric'); // Should trigger
+        logResult('boundary-results', `First trigger: ${manager.hasTriggeredThisBoundary}`);
+        
+        // Simulate new boundary by manually updating
+        manager.currentBoundaryStart = new Date(Date.now() - 5 * 60 * 1000);
+        manager.updateCurrentBoundary();
+        logResult('boundary-results', `After boundary update: ${manager.hasTriggeredThisBoundary}`, !manager.hasTriggeredThisBoundary);
+        
+      } catch (error) {
+        logResult('boundary-results', `Error: ${error.message}`, false);
+      }
+    }
+    
+    // Initialize audio context on first click
+    document.addEventListener('click', async () => {
+      if (window.audioAlarmNotifier && !window.audioAlarmNotifier.audioContext) {
+        await window.audioAlarmNotifier.initAudioContext();
+      }
+    }, { once: true });
+  </script>
+</body>
+</html>
