@@ -27,12 +27,17 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initialize UI
   initializeUI();
-  
+
   // Initialize price chart
   initializePriceChart();
-  
+
   // Initialize alarm UI
   initializeAlarmUI();
+
+  // Initialize signal aggregator
+  window.signalAggregator = new SignalAggregator();
+  window.signalAggregator.onUpdate(updateSignalDisplay);
+  console.log('[sidepanel] SignalAggregator attached');
   
   // Simulate price data for testing (only when not in extension environment)
   if (typeof chrome === 'undefined' || !chrome.storage) {
@@ -51,13 +56,18 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log(`Data updated at ${timestamp}:`, newData);
         console.log('Changed values:', changedValues);
-        
+
+        // Feed all fresh metrics into signal aggregator
+        if (window.signalAggregator) {
+          window.signalAggregator.updateMetrics(newData);
+        }
+
         // Process data for the chart
         if (window.chartData.selectedMetric && Object.keys(changedValues).length > 0) {
           processDataChange(changedValues, newData);
         }
       }
-      
+
       // Handle price data updates
       if (changes.priceData) {
         const priceData = changes.priceData.newValue;
@@ -313,7 +323,12 @@ function processPriceData(newPrice) {
   if (window.singleAlarmManager) {
     window.singleAlarmManager.checkAlarm(percentageChange, 'Price Change (%)');
   }
-  
+
+  // Feed live price into signal aggregator for candle-open tracking
+  if (window.signalAggregator) {
+    window.signalAggregator.updatePrice(newPrice);
+  }
+
   // Update chart
   window.priceChartData.chart.update('none');
   
@@ -651,6 +666,50 @@ function updateTimeWindowDisplay() {
     `Time window: ${formatTime(startTime)} - ${formatTime(endTime)}`;
 }
   
+// Update the signal panel DOM from an aggregate result object
+function updateSignalDisplay(result) {
+  const INDICATOR_IDS = {
+    priceAction: 'sig-priceAction',
+    darkPool:    'sig-darkPool',
+    nof:         'sig-nof',
+    momoFlow:    'sig-momoFlow',
+    mmSkew:      'sig-mmSkew',
+    gex:         'sig-gex'
+  };
+
+  const SYMBOLS = { '1': '▲', '-1': '▼', '0': '—' };
+  const CSS_CLASS = { '1': 'buy', '-1': 'sell', '0': 'neutral' };
+
+  // Update each indicator cell
+  Object.entries(INDICATOR_IDS).forEach(([key, elemId]) => {
+    const el = document.getElementById(elemId);
+    if (!el) return;
+    const val = String(result.signals[key]);
+    el.textContent = SYMBOLS[val] || '—';
+    el.className = 'signal-indicator ' + (CSS_CLASS[val] || 'neutral');
+  });
+
+  // Update badge
+  const badge = document.getElementById('signal-direction-badge');
+  if (badge) {
+    badge.textContent = result.direction;
+    badge.className = result.direction.toLowerCase();
+  }
+
+  // Update score
+  const scoreEl = document.getElementById('signal-score');
+  if (scoreEl) {
+    scoreEl.textContent = result.agreementCount + '/6';
+  }
+
+  // Update timestamp
+  const tsEl = document.getElementById('signal-timestamp');
+  if (tsEl) {
+    const d = new Date(result.timestamp);
+    tsEl.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+}
+
   document.getElementById('actionBtn').addEventListener('click', function() {
     console.log('Extract Data button clicked');
     
@@ -703,7 +762,8 @@ function extractDataFromCurrentPage() {
       'SmartFlow:', 'MomoFlow:', 'SmartTally:', 'MomoTally:', 'Net Call Flow:', 'Net Put Flow:',
       'Net Call Prem:', 'Net Put Prem:', 'NOFA:', 'Call Wall All:', 'Put Wall All:', 'Zero Gamma Flip All:',
       'Gamma Gravity All:', 'Call Wall 7:', 'Put Wall 7:', 'Zero Gamma Flip 7:', 'Gamma Gravity 7:',
-      'Call Wall 0:', 'Put Wall 0:', 'Zero Gamma Flip 0:', 'Gamma Gravity 0:'
+      'Call Wall 0:', 'Put Wall 0:', 'Zero Gamma Flip 0:', 'Gamma Gravity 0:',
+      'Dark Pool:', 'MM Skew:', 'GEX:'
     ];
     const data = {};
     Array.from(parentDiv.children).forEach(div => {

@@ -329,6 +329,81 @@
       padding: 2px 0;
       border-bottom: 1px solid #f0f0f0;
     }
+
+    /* ── Signal Panel ── */
+    #signal-panel {
+      background: #1a1a2e;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      color: #fff;
+    }
+
+    #signal-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    #signal-direction-badge {
+      display: inline-block;
+      font-size: 1.1em;
+      font-weight: bold;
+      padding: 4px 16px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    #signal-direction-badge.buy     { background: #16a34a; color: #fff; }
+    #signal-direction-badge.sell    { background: #dc2626; color: #fff; }
+    #signal-direction-badge.neutral { background: #4b5563; color: #d1d5db; }
+
+    #signal-score {
+      font-size: 1.15em;
+      font-weight: bold;
+      color: #e5e7eb;
+    }
+
+    #signal-timestamp {
+      margin-left: auto;
+      font-size: 0.75em;
+      color: #9ca3af;
+    }
+
+    #signal-breakdown {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 5px;
+    }
+
+    .signal-row {
+      display: flex;
+      align-items: center;
+      background: #16213e;
+      border-radius: 4px;
+      padding: 5px 8px;
+      gap: 6px;
+    }
+
+    .signal-name {
+      font-size: 0.72em;
+      color: #9ca3af;
+      flex: 1;
+    }
+
+    .signal-indicator {
+      font-size: 0.9em;
+      font-weight: bold;
+      min-width: 16px;
+      text-align: right;
+    }
+
+    .signal-indicator.buy     { color: #4ade80; }
+    .signal-indicator.sell    { color: #f87171; }
+    .signal-indicator.neutral { color: #6b7280; }
   </style>
 </head>
 <body>
@@ -338,7 +413,42 @@
   </div>
   <button id="actionBtn">Extract Data</button>
   <div id="result" style="display: none;">Result will appear here.</div>
-  
+
+  <!-- Signal Panel -->
+  <div id="signal-panel">
+    <div id="signal-header">
+      <span id="signal-direction-badge" class="neutral">NEUTRAL</span>
+      <span id="signal-score">0/6</span>
+      <span id="signal-timestamp">--:--:--</span>
+    </div>
+    <div id="signal-breakdown">
+      <div class="signal-row">
+        <span class="signal-name">Price Action</span>
+        <span id="sig-priceAction" class="signal-indicator neutral">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-name">Dark Pool</span>
+        <span id="sig-darkPool" class="signal-indicator neutral">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-name">NOF</span>
+        <span id="sig-nof" class="signal-indicator neutral">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-name">MomoFlow</span>
+        <span id="sig-momoFlow" class="signal-indicator neutral">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-name">MM Skew</span>
+        <span id="sig-mmSkew" class="signal-indicator neutral">—</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-name">GEX</span>
+        <span id="sig-gex" class="signal-indicator neutral">—</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Price Chart (Always Visible) -->
   <div id="price-chart-container">
     <h3 style="margin: 0 0 10px 0; color: #333;">Price Change (%)</h3>
@@ -408,6 +518,7 @@
   <script src="data-extractor.js"></script>
   <script src="single-alarm-manager.js"></script>
   <script src="audio-alarm-notifier.js"></script>
+  <script src="signal-aggregator.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>
