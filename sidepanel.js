@@ -34,10 +34,19 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize alarm UI
   initializeAlarmUI();
 
-  // Initialize signal aggregator
+  // Initialize signal aggregator (settings loaded async below)
   window.signalAggregator = new SignalAggregator();
   window.signalAggregator.onUpdate(updateSignalDisplay);
   console.log('[sidepanel] SignalAggregator attached');
+
+  // Load persisted settings then apply to aggregator
+  initializeSettingsUI();
+  loadSignalSettings(function(settings) {
+    if (settings) {
+      window.signalAggregator.setSettings(settings);
+      console.log('[sidepanel] Persisted signal settings applied');
+    }
+  });
   
   // Simulate price data for testing (only when not in extension environment)
   if (typeof chrome === 'undefined' || !chrome.storage) {
@@ -666,6 +675,165 @@ function updateTimeWindowDisplay() {
     `Time window: ${formatTime(startTime)} - ${formatTime(endTime)}`;
 }
   
+// ── Settings helpers ────────────────────────────────────────────────────────
+
+/**
+ * Parse a number string that may include k / m / b suffixes.
+ * Returns 0 for empty / invalid input so callers always get a number.
+ */
+function parseSettingNumber(str) {
+  if (!str || String(str).trim() === '') return 0;
+  const s = String(str).trim().toLowerCase();
+  const match = s.match(/^([+-]?\d*\.?\d+)([kmb]?)$/);
+  if (!match) return 0;
+  let n = parseFloat(match[1]);
+  if (match[2] === 'k') n *= 1e3;
+  else if (match[2] === 'm') n *= 1e6;
+  else if (match[2] === 'b') n *= 1e9;
+  return isNaN(n) ? 0 : n;
+}
+
+/** Format a raw number back to a compact string for display in inputs. */
+function formatSettingNumber(n) {
+  if (n == null || n === 0) return '0';
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e9)  return sign + (abs / 1e9).toFixed(abs % 1e9 === 0 ? 0 : 2) + 'b';
+  if (abs >= 1e6)  return sign + (abs / 1e6).toFixed(abs % 1e6 === 0 ? 0 : 2) + 'm';
+  if (abs >= 1e3)  return sign + (abs / 1e3).toFixed(abs % 1e3 === 0 ? 0 : 2) + 'k';
+  return String(n);
+}
+
+/** Load signal settings from chrome.storage.local. */
+function loadSignalSettings(callback) {
+  if (typeof chrome === 'undefined' || !chrome.storage) return;
+  chrome.storage.local.get('signalSettings', function(result) {
+    callback(result.signalSettings || null);
+  });
+}
+
+/** Save signal settings to chrome.storage.local. */
+function saveSignalSettings(settings) {
+  if (typeof chrome === 'undefined' || !chrome.storage) return;
+  chrome.storage.local.set({ signalSettings: settings }, function() {
+    console.log('[settings] Saved signal settings:', settings);
+  });
+}
+
+/** Populate the settings form from a settings object. */
+function populateSettingsForm(settings) {
+  const s = settings || window.SIGNAL_DEFAULTS;
+  const get = (obj, key) => (obj && obj[key] != null) ? obj[key] : (window.SIGNAL_DEFAULTS[key] || {});
+
+  const pa   = get(s, 'priceAction');
+  const dp   = get(s, 'darkPool');
+  const nof  = get(s, 'nof');
+  const momo = get(s, 'momoFlow');
+  const skew = get(s, 'mmSkew');
+  const gex  = get(s, 'gex');
+
+  document.getElementById('pa-enabled').checked   = pa.enabled !== false;
+  document.getElementById('pa-threshold').value   = pa.threshold != null ? pa.threshold : 0.05;
+
+  document.getElementById('dp-enabled').checked   = dp.enabled !== false;
+
+  document.getElementById('nof-enabled').checked  = nof.enabled !== false;
+  document.getElementById('nof-buy').value         = formatSettingNumber(nof.buyAbove  || 0);
+  document.getElementById('nof-sell').value        = formatSettingNumber(nof.sellBelow || 0);
+
+  document.getElementById('momo-enabled').checked = momo.enabled !== false;
+  document.getElementById('momo-buy').value        = formatSettingNumber(momo.buyAbove  || 0);
+  document.getElementById('momo-sell').value       = formatSettingNumber(momo.sellBelow || 0);
+
+  document.getElementById('skew-enabled').checked = skew.enabled !== false;
+  document.getElementById('skew-buy').value        = formatSettingNumber(skew.buyAbove  || 0);
+  document.getElementById('skew-sell').value       = formatSettingNumber(skew.sellBelow || 0);
+
+  document.getElementById('gex-enabled').checked  = gex.enabled !== false;
+  document.getElementById('gex-buy').value         = formatSettingNumber(gex.buyAbove  || 0);
+  document.getElementById('gex-sell').value        = formatSettingNumber(gex.sellBelow || 0);
+}
+
+/** Read the settings form and return a settings object. */
+function readSettingsForm() {
+  return {
+    priceAction: {
+      enabled:   document.getElementById('pa-enabled').checked,
+      threshold: parseFloat(document.getElementById('pa-threshold').value) || 0.05
+    },
+    darkPool: {
+      enabled: document.getElementById('dp-enabled').checked
+    },
+    nof: {
+      enabled:   document.getElementById('nof-enabled').checked,
+      buyAbove:  parseSettingNumber(document.getElementById('nof-buy').value),
+      sellBelow: parseSettingNumber(document.getElementById('nof-sell').value)
+    },
+    momoFlow: {
+      enabled:   document.getElementById('momo-enabled').checked,
+      buyAbove:  parseSettingNumber(document.getElementById('momo-buy').value),
+      sellBelow: parseSettingNumber(document.getElementById('momo-sell').value)
+    },
+    mmSkew: {
+      enabled:   document.getElementById('skew-enabled').checked,
+      buyAbove:  parseSettingNumber(document.getElementById('skew-buy').value),
+      sellBelow: parseSettingNumber(document.getElementById('skew-sell').value)
+    },
+    gex: {
+      enabled:   document.getElementById('gex-enabled').checked,
+      buyAbove:  parseSettingNumber(document.getElementById('gex-buy').value),
+      sellBelow: parseSettingNumber(document.getElementById('gex-sell').value)
+    }
+  };
+}
+
+/** Wire up the settings modal and its form. */
+function initializeSettingsUI() {
+  const modal       = document.getElementById('settings-modal');
+  const openBtn     = document.getElementById('settingsBtn');
+  const closeBtn    = document.getElementById('settings-close');
+  const cancelBtn   = document.getElementById('cancel-settings-btn');
+  const resetBtn    = document.getElementById('reset-defaults-btn');
+  const form        = document.getElementById('settings-form');
+
+  const openModal = function() {
+    loadSignalSettings(function(saved) {
+      populateSettingsForm(saved || window.SIGNAL_DEFAULTS);
+    });
+    modal.style.display = 'block';
+  };
+
+  const closeModal = function() {
+    modal.style.display = 'none';
+  };
+
+  openBtn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+
+  window.addEventListener('click', function(e) {
+    if (e.target === modal) closeModal();
+  });
+
+  resetBtn.addEventListener('click', function() {
+    populateSettingsForm(window.SIGNAL_DEFAULTS);
+    console.log('[settings] Form reset to defaults');
+  });
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const settings = readSettingsForm();
+    saveSignalSettings(settings);
+    if (window.signalAggregator) {
+      window.signalAggregator.setSettings(settings);
+    }
+    closeModal();
+    console.log('[settings] Settings saved and applied:', settings);
+  });
+}
+
+// ── Signal display ───────────────────────────────────────────────────────────
+
 // Update the signal panel DOM from an aggregate result object
 function updateSignalDisplay(result) {
   const INDICATOR_IDS = {

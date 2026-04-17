@@ -2,25 +2,47 @@
  * SignalAggregator — evaluates 6 market indicators and emits a composite
  * buy / sell / neutral signal on every data update.
  *
- * Indicators
- *   1. Price Action  – price near/above candle open = BUY, below = SELL
- *   2. Dark Pool     – DP print below current price = BUY, above = SELL
- *   3. NOF           – NOFA trending up from previous candle = BUY, down = SELL
- *   4. MomoFlow      – positive value = BUY, negative = SELL
- *   5. MM Skew       – positive value = BUY, negative = SELL (uses "MM Skew" field,
- *                       falls back to "SmartFlow")
- *   6. GEX           – GEX or Call HP increases from previous candle = BUY,
- *                       both decrease = SELL (uses "GEX" field, falls back to
- *                       "Gamma Gravity All"; also checks "Call Wall All" delta)
+ * All thresholds are configurable via setSettings(). Defaults are exported
+ * as SIGNAL_DEFAULTS so the settings UI can reference them.
  *
  * Individual signals: +1 = BUY, 0 = NEUTRAL, -1 = SELL
  * Total ranges from -6 (max sell) to +6 (max buy).
  */
 
+const SIGNAL_DEFAULTS = {
+    priceAction: {
+        enabled:   true,
+        threshold: 0.05   // $ below candle open before SELL triggers
+    },
+    darkPool: {
+        enabled: true
+        // logic is always "DP < price → BUY, DP > price → SELL" — no numeric threshold
+    },
+    nof: {
+        enabled:   true,
+        buyAbove:  0,     // NOFA delta must be > this for BUY  (supports k/m/b)
+        sellBelow: 0      // NOFA delta must be < this for SELL (enter 0 or negative)
+    },
+    momoFlow: {
+        enabled:   true,
+        buyAbove:  0,     // MomoFlow value must be > this for BUY
+        sellBelow: 0      // MomoFlow value must be < this for SELL
+    },
+    mmSkew: {
+        enabled:   true,
+        buyAbove:  0,
+        sellBelow: 0
+    },
+    gex: {
+        enabled:   true,
+        buyAbove:  0,     // GEX/CallHP delta must be > this for BUY
+        sellBelow: 0      // GEX/CallHP delta must be < this for SELL
+    }
+};
+
 class SignalAggregator {
-    constructor() {
-        // Price action threshold: how far below the candle open before SELL
-        this.PRICE_THRESHOLD = 0.05; // $0.05
+    constructor(settings) {
+        this.settings = this._merge(settings || {});
 
         this.currentMetrics = {};
         this.previousCandleMetrics = {};
@@ -30,7 +52,7 @@ class SignalAggregator {
         this._listeners = [];
         this._lastDirection = null;
 
-        console.log('[SignalAggregator] Initialized (price threshold: $' + this.PRICE_THRESHOLD + ')');
+        console.log('[SignalAggregator] Initialized with settings:', this.settings);
     }
 
     // ── Public API ──────────────────────────────────────────────────────────
@@ -38,6 +60,16 @@ class SignalAggregator {
     /** Register a callback invoked on every signal update. */
     onUpdate(callback) {
         this._listeners.push(callback);
+    }
+
+    /**
+     * Replace active settings (deep-merged with defaults) and re-evaluate.
+     * Call this whenever the user saves new settings.
+     */
+    setSettings(settings) {
+        this.settings = this._merge(settings || {});
+        console.log('[SignalAggregator] Settings updated:', this.settings);
+        this._emit();
     }
 
     /**
@@ -51,7 +83,6 @@ class SignalAggregator {
         const minuteKey = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0');
 
         if (this._currentMinuteKey !== minuteKey) {
-            // New candle — save current state as previous before resetting
             this.previousCandleMetrics = Object.assign({}, this.currentMetrics);
             const prev = this._currentMinuteKey || 'none';
             this.candleOpenPrice = price;
@@ -65,16 +96,14 @@ class SignalAggregator {
         this._emit();
     }
 
-    /**
-     * Feed the latest full metrics object (from chrome.storage extractedData).
-     */
+    /** Feed the latest full metrics object (from chrome.storage extractedData). */
     updateMetrics(data) {
         if (!data || typeof data !== 'object') return;
         this.currentMetrics = data;
         this._emit();
     }
 
-    /** Compute and return the current aggregate result without emitting. */
+    /** Compute and return the current aggregate result (does not emit). */
     aggregate() {
         const signals = {
             priceAction: this._priceActionSignal(),
@@ -85,10 +114,10 @@ class SignalAggregator {
             gex:         this._gexSignal()
         };
 
-        const values = Object.values(signals);
-        const buyCount  = values.filter(v => v ===  1).length;
-        const sellCount = values.filter(v => v === -1).length;
-        const total     = buyCount - sellCount;
+        const values      = Object.values(signals);
+        const buyCount    = values.filter(v => v ===  1).length;
+        const sellCount   = values.filter(v => v === -1).length;
+        const total       = buyCount - sellCount;
 
         let direction, agreementCount;
         if (total > 0)      { direction = 'BUY';     agreementCount = buyCount; }
@@ -102,26 +131,32 @@ class SignalAggregator {
     // ── Individual signal evaluators ────────────────────────────────────────
 
     /**
-     * Price Action: price >= (candle open - threshold) = BUY, else SELL.
-     * Returns 0 when no price or candle open is available yet.
+     * Price Action: price >= (candle open − threshold) = BUY, else SELL.
      */
     _priceActionSignal() {
+        const cfg = this.settings.priceAction;
+        if (!cfg.enabled) return 0;
         if (this.currentPrice == null || this.candleOpenPrice == null) return 0;
-        const diff = this.currentPrice - this.candleOpenPrice;
-        const signal = diff >= -this.PRICE_THRESHOLD ? 1 : -1;
+
+        const diff   = this.currentPrice - this.candleOpenPrice;
+        const signal = diff >= -cfg.threshold ? 1 : -1;
         console.log('[SignalAggregator][PA] price=' + this.currentPrice +
             ' open=' + this.candleOpenPrice +
-            ' diff=' + diff.toFixed(3) + ' → ' + signal);
+            ' diff=' + diff.toFixed(3) +
+            ' threshold=-' + cfg.threshold + ' → ' + signal);
         return signal;
     }
 
     /**
      * Dark Pool: DP print below current price = BUY, above = SELL.
-     * Falls back to 0 if "Dark Pool" metric is not available.
      */
     _darkPoolSignal() {
+        const cfg = this.settings.darkPool;
+        if (!cfg.enabled) return 0;
+
         const dp = this._parse(this.currentMetrics['Dark Pool']);
         if (dp == null || this.currentPrice == null) return 0;
+
         const signal = dp < this.currentPrice ? 1 : dp > this.currentPrice ? -1 : 0;
         console.log('[SignalAggregator][DP] dp=' + dp +
             ' price=' + this.currentPrice + ' → ' + signal);
@@ -129,53 +164,81 @@ class SignalAggregator {
     }
 
     /**
-     * NOF: NOFA trending up from previous candle = BUY, down = SELL.
-     * Returns 0 when previous candle data is not yet available.
+     * NOF: NOFA delta vs previous candle compared against buyAbove / sellBelow.
      */
     _nofSignal() {
+        const cfg = this.settings.nof;
+        if (!cfg.enabled) return 0;
+
         const curr = this._parse(this.currentMetrics['NOFA']);
         const prev = this._parse(this.previousCandleMetrics['NOFA']);
         if (curr == null || prev == null) return 0;
-        const signal = curr > prev ? 1 : curr < prev ? -1 : 0;
-        console.log('[SignalAggregator][NOF] curr=' + curr +
-            ' prev=' + prev + ' Δ=' + (curr - prev) + ' → ' + signal);
+
+        const delta  = curr - prev;
+        let signal;
+        if      (delta > cfg.buyAbove)  signal =  1;
+        else if (delta < cfg.sellBelow) signal = -1;
+        else                            signal =  0;
+
+        console.log('[SignalAggregator][NOF] curr=' + curr + ' prev=' + prev +
+            ' Δ=' + delta + ' buyAbove=' + cfg.buyAbove +
+            ' sellBelow=' + cfg.sellBelow + ' → ' + signal);
         return signal;
     }
 
     /**
-     * MomoFlow: positive value = BUY, negative = SELL.
+     * MomoFlow: value compared against buyAbove / sellBelow thresholds.
      */
     _momoFlowSignal() {
+        const cfg = this.settings.momoFlow;
+        if (!cfg.enabled) return 0;
+
         const value = this._parse(this.currentMetrics['MomoFlow']);
         if (value == null) return 0;
-        const signal = value > 0 ? 1 : value < 0 ? -1 : 0;
-        console.log('[SignalAggregator][MOMO] value=' + value + ' → ' + signal);
+
+        let signal;
+        if      (value > cfg.buyAbove)  signal =  1;
+        else if (value < cfg.sellBelow) signal = -1;
+        else                            signal =  0;
+
+        console.log('[SignalAggregator][MOMO] value=' + value +
+            ' buyAbove=' + cfg.buyAbove + ' sellBelow=' + cfg.sellBelow + ' → ' + signal);
         return signal;
     }
 
     /**
-     * MM Skew: positive = BUY, negative = SELL.
+     * MM Skew: value compared against buyAbove / sellBelow thresholds.
      * Prefers "MM Skew" field; falls back to "SmartFlow".
      */
     _mmSkewSignal() {
-        const raw = ('MM Skew' in this.currentMetrics)
+        const cfg = this.settings.mmSkew;
+        if (!cfg.enabled) return 0;
+
+        const raw   = ('MM Skew' in this.currentMetrics)
             ? this.currentMetrics['MM Skew']
             : this.currentMetrics['SmartFlow'];
         const value = this._parse(raw);
         if (value == null) return 0;
-        const signal = value > 0 ? 1 : value < 0 ? -1 : 0;
-        console.log('[SignalAggregator][SKEW] value=' + value + ' → ' + signal);
+
+        let signal;
+        if      (value > cfg.buyAbove)  signal =  1;
+        else if (value < cfg.sellBelow) signal = -1;
+        else                            signal =  0;
+
+        console.log('[SignalAggregator][SKEW] value=' + value +
+            ' buyAbove=' + cfg.buyAbove + ' sellBelow=' + cfg.sellBelow + ' → ' + signal);
         return signal;
     }
 
     /**
-     * GEX: GEX or Call HP increases from previous candle = BUY.
-     * Both decrease = SELL. Mixed / unavailable = NEUTRAL.
-     *
-     * GEX field: prefers "GEX", falls back to "Gamma Gravity All".
-     * Call HP field: "Call Wall All".
+     * GEX: delta of GEX (or Call HP) vs previous candle compared against thresholds.
+     * BUY if either GEX or CallHP delta exceeds buyAbove.
+     * SELL if both are below sellBelow (when both available), or single delta < sellBelow.
      */
     _gexSignal() {
+        const cfg = this.settings.gex;
+        if (!cfg.enabled) return 0;
+
         const gexKey    = 'GEX' in this.currentMetrics ? 'GEX' : 'Gamma Gravity All';
         const gexDelta  = this._delta(gexKey);
         const callDelta = this._delta('Call Wall All');
@@ -184,18 +247,19 @@ class SignalAggregator {
 
         let signal;
         if (gexDelta != null && callDelta != null) {
-            // Both available: BUY if either up, SELL if both down, else NEUTRAL
-            if (gexDelta > 0 || callDelta > 0) signal = 1;
-            else if (gexDelta < 0 && callDelta < 0) signal = -1;
-            else signal = 0;
+            if (gexDelta > cfg.buyAbove || callDelta > cfg.buyAbove)       signal =  1;
+            else if (gexDelta < cfg.sellBelow && callDelta < cfg.sellBelow) signal = -1;
+            else                                                             signal =  0;
         } else {
-            // Only one available
             const delta = gexDelta != null ? gexDelta : callDelta;
-            signal = delta > 0 ? 1 : delta < 0 ? -1 : 0;
+            if      (delta > cfg.buyAbove)  signal =  1;
+            else if (delta < cfg.sellBelow) signal = -1;
+            else                            signal =  0;
         }
 
         console.log('[SignalAggregator][GEX] ' + gexKey + ' Δ=' + gexDelta +
-            ' CallHP Δ=' + callDelta + ' → ' + signal);
+            ' CallHP Δ=' + callDelta + ' buyAbove=' + cfg.buyAbove +
+            ' sellBelow=' + cfg.sellBelow + ' → ' + signal);
         return signal;
     }
 
@@ -216,7 +280,16 @@ class SignalAggregator {
         return curr - prev;
     }
 
-    /** Compute aggregate, log direction changes, and notify listeners. */
+    /** Deep-merge caller-supplied settings over SIGNAL_DEFAULTS. */
+    _merge(overrides) {
+        const result = {};
+        Object.keys(SIGNAL_DEFAULTS).forEach(key => {
+            result[key] = Object.assign({}, SIGNAL_DEFAULTS[key], overrides[key] || {});
+        });
+        return result;
+    }
+
+    /** Compute aggregate, log direction changes, notify listeners. */
     _emit() {
         const result = this.aggregate();
 
@@ -231,4 +304,5 @@ class SignalAggregator {
     }
 }
 
-window.SignalAggregator = SignalAggregator;
+window.SignalAggregator  = SignalAggregator;
+window.SIGNAL_DEFAULTS   = SIGNAL_DEFAULTS;

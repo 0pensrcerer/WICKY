@@ -89,7 +89,97 @@
     #popoutBtn:hover {
       background: #218838;
     }
-    
+    #settingsBtn {
+      padding: 8px 12px;
+      background: #555;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    #settingsBtn:hover { background: #333; }
+
+    /* ── Settings Modal ── */
+    #settings-modal .modal-content {
+      max-width: 480px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .settings-section {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .settings-section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .settings-section-title {
+      font-weight: bold;
+      font-size: 0.95em;
+      color: #1f2937;
+    }
+    .settings-enabled-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      font-size: 0.82em;
+      color: #6b7280;
+    }
+    .settings-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .settings-fields.single { grid-template-columns: 1fr; }
+    .settings-field label {
+      display: block;
+      font-size: 0.78em;
+      color: #6b7280;
+      margin-bottom: 3px;
+    }
+    .settings-field input[type="text"],
+    .settings-field input[type="number"] {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.85em;
+      box-sizing: border-box;
+      background: #f9fafb;
+    }
+    .settings-field input:focus {
+      outline: none;
+      border-color: #6366f1;
+      background: #fff;
+    }
+    .settings-hint {
+      font-size: 0.72em;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    #settings-footer {
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      margin-top: 16px;
+    }
+    #reset-defaults-btn {
+      padding: 8px 14px;
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85em;
+    }
+    #reset-defaults-btn:hover { background: #e5e7eb; }
+
     /* Alarm UI Styles */
     #alarm-controls {
       margin: 15px 0;
@@ -409,7 +499,10 @@
 <body>
   <div class="header-container">
     <h1>WICKY</h1>
-    <button id="popoutBtn">Pop Out</button>
+    <div style="display:flex;gap:8px;">
+      <button id="settingsBtn" title="Signal settings">&#9881; Settings</button>
+      <button id="popoutBtn">Pop Out</button>
+    </div>
   </div>
   <button id="actionBtn">Extract Data</button>
   <div id="result" style="display: none;">Result will appear here.</div>
@@ -515,6 +608,149 @@
     </div>
   </div>
   
+  <!-- Signal Settings Modal -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Signal Settings</h3>
+        <span class="close" id="settings-close">&times;</span>
+      </div>
+
+      <p style="font-size:0.8em;color:#6b7280;margin:0 0 14px;">
+        Supports k / m / b suffixes (e.g. <code>50m</code> = 50,000,000).
+        Leave fields at <code>0</code> for default behaviour (any positive = BUY, any negative = SELL).
+      </p>
+
+      <form id="settings-form">
+
+        <!-- 1. Price Action -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">1. Price Action</span>
+            <label class="settings-enabled-toggle">
+              <input type="checkbox" id="pa-enabled"> Enabled
+            </label>
+          </div>
+          <div class="settings-fields single">
+            <div class="settings-field">
+              <label for="pa-threshold">SELL when price drops below open by ($)</label>
+              <input type="text" id="pa-threshold" placeholder="0.05">
+              <div class="settings-hint">e.g. 0.05 means price must fall more than $0.05 below candle open to trigger SELL</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Dark Pool -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">2. Dark Pool</span>
+            <label class="settings-enabled-toggle">
+              <input type="checkbox" id="dp-enabled"> Enabled
+            </label>
+          </div>
+          <p style="font-size:0.8em;color:#9ca3af;margin:0;">
+            BUY when DP print is below current price; SELL when above. No additional threshold.
+          </p>
+        </div>
+
+        <!-- 3. NOF -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">3. NOF (Net Options Flow)</span>
+            <label class="settings-enabled-toggle">
+              <input type="checkbox" id="nof-enabled"> Enabled
+            </label>
+          </div>
+          <div class="settings-fields">
+            <div class="settings-field">
+              <label for="nof-buy">BUY when candle delta above</label>
+              <input type="text" id="nof-buy" placeholder="0">
+              <div class="settings-hint">e.g. 5m → only BUY if NOFA rose by &gt; 5m</div>
+            </div>
+            <div class="settings-field">
+              <label for="nof-sell">SELL when candle delta below</label>
+              <input type="text" id="nof-sell" placeholder="0">
+              <div class="settings-hint">e.g. -5m or 0 → SELL on any drop</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. MomoFlow -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">4. MomoFlow</span>
+            <label class="settings-enabled-toggle">
+              <input type="checkbox" id="momo-enabled"> Enabled
+            </label>
+          </div>
+          <div class="settings-fields">
+            <div class="settings-field">
+              <label for="momo-buy">BUY when value above</label>
+              <input type="text" id="momo-buy" placeholder="0">
+              <div class="settings-hint">e.g. 100m</div>
+            </div>
+            <div class="settings-field">
+              <label for="momo-sell">SELL when value below</label>
+              <input type="text" id="momo-sell" placeholder="0">
+              <div class="settings-hint">e.g. -100m or 0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. MM Skew -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">5. MM Skew</span>
+            <label class="settings-enabled-toggle">
+              <input type="checkbox" id="skew-enabled"> Enabled
+            </label>
+          </div>
+          <div class="settings-fields">
+            <div class="settings-field">
+              <label for="skew-buy">BUY when value above</label>
+              <input type="text" id="skew-buy" placeholder="0">
+            </div>
+            <div class="settings-field">
+              <label for="skew-sell">SELL when value below</label>
+              <input type="text" id="skew-sell" placeholder="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. GEX -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">6. GEX</span>
+            <label class="settings-enabled-toggle">
+              <input type="checkbox" id="gex-enabled"> Enabled
+            </label>
+          </div>
+          <div class="settings-fields">
+            <div class="settings-field">
+              <label for="gex-buy">BUY when candle delta above</label>
+              <input type="text" id="gex-buy" placeholder="0">
+              <div class="settings-hint">e.g. 0 → any increase in GEX or Call HP = BUY</div>
+            </div>
+            <div class="settings-field">
+              <label for="gex-sell">SELL when candle delta below</label>
+              <input type="text" id="gex-sell" placeholder="0">
+              <div class="settings-hint">e.g. 0 → any decrease = SELL</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="settings-footer">
+          <button type="button" id="reset-defaults-btn">Reset Defaults</button>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn btn-secondary" id="cancel-settings-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+          </div>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
   <script src="data-extractor.js"></script>
   <script src="single-alarm-manager.js"></script>
   <script src="audio-alarm-notifier.js"></script>
